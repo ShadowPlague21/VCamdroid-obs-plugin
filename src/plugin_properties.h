@@ -61,19 +61,34 @@ static const char* VideoFormatNames[][2] = {
 };
 
 static const char* Resolutions[] = {
-    "640x480",
-    "1024x768",
-    "1280x720",
+    // 16:9 Standard
     "1920x1080",
-    #if DROIDCAM_OVERRIDE
-    #else
-    "1920x1440",
+    "1280x720",
     "2560x1440",
     "3840x2160",
-    #endif
+    "640x360",
+    // 4:3 Presets
+    "1920x1440",
+    "2880x2160",
+    "1600x1200",
+    "1440x1080",
+    "1280x960",
+    "1024x768",
+    "640x480",
+    // 1:1 Square Presets
+    "2160x2160",
+    "1440x1440",
+    "1080x1080",
+    "720x720",
+    // 9:16 Vertical Presets
+    "1080x1920",
+    "720x1280",
+    // 21:9 Ultrawide Presets
+    "2560x1080",
+    "3440x1440",
 };
 
-#define RESOLUTION_1080 3
+#define RESOLUTION_1080 0
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -88,20 +103,18 @@ static inline bool ConvertRes(const char *res, int* cx, int* cy)
 
 static inline bool ResolutionValid(const char *res, int* cx, int* cy)
 {
-
-    const int MIN_WIDTH  = 600;
-    const int MIN_HEIGHT = 400;
-    const int MAX_WIDTH  = 4000;
-    const int MAX_HEIGHT = 3000;
+    const int MIN_DIM = 128;
+    const int MAX_DIM = 8192;
     return ConvertRes(res, cx, cy)
-        && (*cx > MIN_WIDTH && *cy > MIN_HEIGHT && *cx < MAX_WIDTH && *cy < MAX_HEIGHT);
+        && (*cx >= MIN_DIM && *cy >= MIN_DIM && *cx <= MAX_DIM && *cy <= MAX_DIM);
 }
 
 static inline int getResolutionIndex(const char* resolution) {
     for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
-        if (memcmp(Resolutions[i], resolution, strlen(Resolutions[i])-1) == 0)
-            return i;
+        if (strcmp(Resolutions[i], resolution) == 0)
+            return (int)i;
     }
 
     return 0;
 }
+

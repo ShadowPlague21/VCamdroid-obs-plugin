@@ -1,0 +1,40 @@
+name: Build VCamdroid OBS Plugin
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libobs-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswresample-dev \
+            libturbojpeg0-dev \
+            libusbmuxd-dev \
+            libimobiledevice-dev
+
+      - name: Build plugin
+        run: |
+          mkdir -p build
+          make
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidcam-obs-linux
+          path: build/droidcam-obs.so

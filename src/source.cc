@@ -872,8 +872,8 @@ void *source_create(obs_data_t *settings, obs_source_t *source) {
     if (!ResolutionValid(video_resolution, &plugin->video_width, &plugin->video_height)) {
         obs_data_set_string(settings, OPT_RESOLUTION_STR, Resolutions[0]);
         if (!ConvertRes(Resolutions[0], &plugin->video_width, &plugin->video_height)) {
-            plugin->video_width  = 1280;
-            plugin->video_height = 720;
+            plugin->video_width  = 1920;
+            plugin->video_height = 1080;
         }
     }
 
@@ -1349,9 +1349,6 @@ obs_properties_t *source_properties(void *data) {
         OBS_COMBO_FORMAT_STRING);
     for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
         obs_property_list_add_string(cp, Resolutions[i], Resolutions[i]);
-        #if DROIDCAM_OVERRIDE==0
-        if (!uhd_unlock && i == RESOLUTION_1080) break;
-        #endif
     }
 
     obs_property_set_modified_callback2(cp, video_parms_changed, data);
@@ -1421,7 +1418,7 @@ obs_properties_t *source_properties(void *data) {
 
 void source_defaults(obs_data_t *settings) {
     obs_data_set_default_bool(settings, OPT_DUMMY_SOURCE, false);
-    obs_data_set_default_bool(settings, OPT_UHD_UNLOCK, false);
+    obs_data_set_default_bool(settings, OPT_UHD_UNLOCK, true);
     obs_data_set_default_bool(settings, OPT_IS_ACTIVATED, false);
     obs_data_set_default_bool(settings, OPT_SYNC_AV, false);
     obs_data_set_default_bool(settings, OPT_USE_HDR, false);
