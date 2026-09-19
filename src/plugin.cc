@@ -69,6 +69,11 @@ static const char *plugin_getname(void *data) {
     return "VCamdroid";
 }
 
+static const char *legacy_getname(void *data) {
+    UNUSED_PARAMETER(data);
+    return "DroidCam OBS (Legacy)";
+}
+
 #if ENABLE_GUI
 static inline void swap_bindIP() {
     config_t *obs_config_profile = obs_frontend_get_profile_config();
@@ -89,7 +94,7 @@ static inline void swap_bindIP() {
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("VCamdroid / Dev47Apps")
-OBS_MODULE_USE_DEFAULT_LOCALE("droidcam-obs", "en-US")
+OBS_MODULE_USE_DEFAULT_LOCALE("vcamdroid-obs", "en-US")
 MODULE_EXPORT const char *obs_module_description(void) {
     return "Use your phone as a camera source with the VCamdroid app.";
 }
@@ -124,9 +129,16 @@ bool obs_module_load(void) {
     droidcam_obs_info.get_properties = source_properties;
     obs_register_source(&droidcam_obs_info);
 
-    // Also register legacy 'droidcam_obs' ID for seamless backward compatibility with existing scenes
+    // Also register legacy 'droidcam_obs' ID for seamless backward compatibility with existing scenes.
+    // Flagged with OBS_SOURCE_DEPRECATED so OBS hides it from the "Add Source" menu, avoiding duplicate items.
     struct obs_source_info legacy_info = droidcam_obs_info;
     legacy_info.id = "droidcam_obs";
+    legacy_info.get_name = legacy_getname;
+#ifdef OBS_SOURCE_DEPRECATED
+    legacy_info.output_flags |= OBS_SOURCE_DEPRECATED;
+#else
+    legacy_info.output_flags |= (1 << 8);
+#endif
     obs_register_source(&legacy_info);
 
     #if DROIDCAM_OVERRIDE

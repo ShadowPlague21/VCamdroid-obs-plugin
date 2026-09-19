@@ -9,10 +9,13 @@ if (!(Test-Path $sourceDll)) {
     $sourceDll = "$PSScriptRoot\build\droidcam-obs.dll"
 }
 
-$targetDir = "C:\Program Files\obs-studio\obs-plugins\64bit"
-$targetDllPrimary = "$targetDir\vcamdroid-obs.dll"
-$targetDllLegacy  = "$targetDir\droidcam-obs.dll"
-$backupDll        = "$targetDir\droidcam-obs.dll.original.bak"
+$targetPluginsDir = "C:\Program Files\obs-studio\obs-plugins\64bit"
+$targetDllPrimary = "$targetPluginsDir\vcamdroid-obs.dll"
+$legacyDll        = "$targetPluginsDir\droidcam-obs.dll"
+$backupDll        = "$targetPluginsDir\droidcam-obs.dll.original.bak"
+
+$dataSrcDir       = "$PSScriptRoot\data"
+$dataTargetDir    = "C:\Program Files\obs-studio\data\obs-plugins\vcamdroid-obs"
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Installing VCamdroid OBS Plugin (Windows) " -ForegroundColor Cyan
@@ -44,19 +47,38 @@ if (!(Test-Path $sourceDll)) {
     }
 }
 
-# 3. Create backup of original DLL
-if ((Test-Path $targetDllLegacy) -and !(Test-Path $backupDll)) {
-    Copy-Item -Path $targetDllLegacy -Destination $backupDll -Force
-    Write-Host "[OK] Backed up original DLL to: $backupDll" -ForegroundColor Green
+# 3. Clean up legacy droidcam-obs.dll to prevent duplicate plugin loading
+if (Test-Path $legacyDll) {
+    if (!(Test-Path $backupDll)) {
+        # Check if legacy DLL is different from the new one before backing up
+        $newHash = (Get-FileHash $sourceDll -Algorithm SHA256).Hash
+        $oldHash = (Get-FileHash $legacyDll -Algorithm SHA256).Hash
+        if ($newHash -ne $oldHash) {
+            Copy-Item -Path $legacyDll -Destination $backupDll -Force
+            Write-Host "[OK] Backed up original droidcam-obs.dll to: $backupDll" -ForegroundColor Green
+        }
+    }
+    Remove-Item -Path $legacyDll -Force
+    Write-Host "[OK] Removed legacy droidcam-obs.dll to eliminate duplicate entries in OBS." -ForegroundColor Green
 }
 
-# 4. Copy new DLL to both vcamdroid-obs.dll and droidcam-obs.dll (for full compatibility)
+# 4. Copy new DLL to vcamdroid-obs.dll (Single plugin instance)
 Copy-Item -Path $sourceDll -Destination $targetDllPrimary -Force
-Copy-Item -Path $sourceDll -Destination $targetDllLegacy -Force
-Write-Host "[OK] Successfully installed into OBS:" -ForegroundColor Green
+Write-Host "[OK] Successfully installed single primary plugin:" -ForegroundColor Green
 Write-Host "     -> $targetDllPrimary" -ForegroundColor Green
-Write-Host "     -> $targetDllLegacy (backward-compatible alias)" -ForegroundColor Green
+
+# 5. Copy locale and assets to data\obs-plugins\vcamdroid-obs
+if (Test-Path $dataSrcDir) {
+    if (!(Test-Path $dataTargetDir)) {
+        New-Item -ItemType Directory -Path $dataTargetDir -Force | Out-Null
+    }
+    Copy-Item -Path "$dataSrcDir\*" -Destination $dataTargetDir -Recurse -Force
+    Write-Host "[OK] Installed plugin assets & locales to:" -ForegroundColor Green
+    Write-Host "     -> $dataTargetDir" -ForegroundColor Green
+}
+
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Installation Complete! You can now start OBS Studio." -ForegroundColor Cyan
+Write-Host "Only one clean 'VCamdroid' source will appear in OBS." -ForegroundColor Green
 Write-Host "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
