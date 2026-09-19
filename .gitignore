@@ -1,6 +1,8 @@
 build/
+deps/
 src/ui/moc_*
 src/ui/uic_*
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+.ignore
