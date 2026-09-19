@@ -5,7 +5,7 @@
 #define PLUGIN_VERSION_STR "251"
 
 #define xlog(log_level, format, ...) \
-        blog(log_level, "[DroidCamOBS] " format, ##__VA_ARGS__)
+        blog(log_level, "[VCamdroid] " format, ##__VA_ARGS__)
 
 #ifdef DEBUG
 #define dlog(format, ...) xlog(LOG_INFO, format, ##__VA_ARGS__)

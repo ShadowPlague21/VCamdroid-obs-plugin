@@ -39,8 +39,8 @@ jobs:
       - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
-          name: droidcam-obs-linux
-          path: build/droidcam-obs.so
+          name: vcamdroid-obs-linux
+          path: build/vcamdroid-obs.so
 
   build-windows:
     runs-on: windows-latest
@@ -59,8 +59,10 @@ jobs:
       - name: Upload Windows DLL
         uses: actions/upload-artifact@v4
         with:
-          name: droidcam-obs-windows
-          path: build/droidcam-obs.dll
+          name: vcamdroid-obs-windows
+          path: |
+            build/vcamdroid-obs.dll
+            build/droidcam-obs.dll
 
       - name: Release Windows DLL
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
@@ -68,6 +70,8 @@ jobs:
         with:
           tag_name: latest
           name: VCamdroid OBS Plugin (Latest Build)
-          files: build/droidcam-obs.dll
+          files: |
+            build/vcamdroid-obs.dll
+            build/droidcam-obs.dll
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

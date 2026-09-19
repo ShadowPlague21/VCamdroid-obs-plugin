@@ -2,7 +2,7 @@
 
 DATA_DIR  ?= data
 BUILD_DIR ?= build
-LIB_DLL   ?= $(BUILD_DIR)/droidcam-obs.so
+LIB_DLL   ?= $(BUILD_DIR)/vcamdroid-obs.so
 
 MOC      ?= /usr/bin/moc
 UIC      ?= /usr/bin/uic

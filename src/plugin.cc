@@ -66,11 +66,7 @@ void droidcam_signal(obs_source_t* source, const char* signal) {
 
 static const char *plugin_getname(void *data) {
     UNUSED_PARAMETER(data);
-    #if DROIDCAM_OVERRIDE
-    return "DroidCam";
-    #else
-    return obs_module_text("DroidCamOBS");
-    #endif
+    return "VCamdroid";
 }
 
 #if ENABLE_GUI
@@ -86,20 +82,20 @@ static inline void swap_bindIP() {
             strncpy(dest, ip, sizeof(bindIP1));
             bindIP = (const char*) dest;
         }
-        blog(LOG_INFO, "[droidcam-obs] using bindIP '%s'", bindIP);
+        blog(LOG_INFO, "[vcamdroid-obs] using bindIP '%s'", bindIP);
     }
 }
 #endif
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_AUTHOR("Dev47Apps")
+OBS_MODULE_AUTHOR("VCamdroid / Dev47Apps")
 OBS_MODULE_USE_DEFAULT_LOCALE("droidcam-obs", "en-US")
 MODULE_EXPORT const char *obs_module_description(void) {
-    return "Use your phone as a camera source with the DroidCam app.";
+    return "Use your phone as a camera source with the VCamdroid app.";
 }
 
 MODULE_EXPORT const char *obs_module_name(void) {
-    return "DroidCam";
+    return "VCamdroid";
 }
 
 bool obs_module_load(void) {
@@ -107,12 +103,12 @@ bool obs_module_load(void) {
     memset(&droidcam_obs_info, 0, sizeof(struct obs_source_info));
 
     if (AV_VERSION_MAJOR(avcodec_version()) > LIBAVCODEC_VERSION_MAJOR) {
-        blog(LOG_ERROR, "[droidcam-obs] libavcodec version %u is too high (<= %d required for this release).",
+        blog(LOG_ERROR, "[vcamdroid-obs] libavcodec version %u is too high (<= %d required for this release).",
             AV_VERSION_MAJOR(avcodec_version()), LIBAVCODEC_VERSION_MAJOR);
         return false;
     }
 
-    droidcam_obs_info.id           = "droidcam_obs";
+    droidcam_obs_info.id           = "vcamdroid_obs";
     droidcam_obs_info.type         = OBS_SOURCE_TYPE_INPUT;
     droidcam_obs_info.output_flags = OBS_SOURCE_DO_NOT_DUPLICATE | OBS_SOURCE_AUDIO | OBS_SOURCE_ASYNC_VIDEO;
     droidcam_obs_info.get_name     = plugin_getname;
@@ -123,14 +119,15 @@ bool obs_module_load(void) {
     droidcam_obs_info.activate     = source_show_main;
     droidcam_obs_info.deactivate   = source_hide_main;
     droidcam_obs_info.update       = source_update;
-    #if DROIDCAM_OVERRIDE
     droidcam_obs_info.icon_type    = OBS_ICON_TYPE_CAMERA;
-    #else
-    droidcam_obs_info.icon_type    = OBS_ICON_TYPE_CUSTOM;
-    #endif
     droidcam_obs_info.get_defaults = source_defaults;
     droidcam_obs_info.get_properties = source_properties;
     obs_register_source(&droidcam_obs_info);
+
+    // Also register legacy 'droidcam_obs' ID for seamless backward compatibility with existing scenes
+    struct obs_source_info legacy_info = droidcam_obs_info;
+    legacy_info.id = "droidcam_obs";
+    obs_register_source(&legacy_info);
 
     #if DROIDCAM_OVERRIDE
     signal_handler_add_array(obs_get_signal_handler(), droidcam_signals);
@@ -170,7 +167,7 @@ bool obs_module_load(void) {
     #endif
 
     get_os_name_version(os_name_version, sizeof(os_name_version));
-    blog(LOG_INFO, "[droidcam-obs] module loaded release %s (%s)",
+    blog(LOG_INFO, "[vcamdroid-obs] module loaded release %s (%s)",
         PLUGIN_VERSION_STR, os_name_version);
     return true;
 }

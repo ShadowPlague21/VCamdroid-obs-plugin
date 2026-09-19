@@ -4,10 +4,15 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     exit
 }
 
-$sourceDll = "$PSScriptRoot\build\droidcam-obs.dll"
+$sourceDll = "$PSScriptRoot\build\vcamdroid-obs.dll"
+if (!(Test-Path $sourceDll)) {
+    $sourceDll = "$PSScriptRoot\build\droidcam-obs.dll"
+}
+
 $targetDir = "C:\Program Files\obs-studio\obs-plugins\64bit"
-$targetDll = "$targetDir\droidcam-obs.dll"
-$backupDll = "$targetDir\droidcam-obs.dll.original.bak"
+$targetDllPrimary = "$targetDir\vcamdroid-obs.dll"
+$targetDllLegacy  = "$targetDir\droidcam-obs.dll"
+$backupDll        = "$targetDir\droidcam-obs.dll.original.bak"
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Installing VCamdroid OBS Plugin (Windows) " -ForegroundColor Cyan
@@ -26,23 +31,31 @@ if ($obsProc) {
     Write-Host "[OK] OBS Studio closed." -ForegroundColor Green
 }
 
-# 2. Verify source DLL exists
+# 2. Verify source DLL exists or download
 if (!(Test-Path $sourceDll)) {
-    Write-Host "[*] Downloading latest droidcam-obs.dll from GitHub Release..." -ForegroundColor Cyan
+    Write-Host "[*] Downloading latest plugin from GitHub Release..." -ForegroundColor Cyan
     if (!(Test-Path "$PSScriptRoot\build")) { New-Item -ItemType Directory -Path "$PSScriptRoot\build" | Out-Null }
-    Invoke-WebRequest -Uri "https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/download/latest/droidcam-obs.dll" -OutFile $sourceDll
+    try {
+        Invoke-WebRequest -Uri "https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/download/latest/vcamdroid-obs.dll" -OutFile "$PSScriptRoot\build\vcamdroid-obs.dll"
+        $sourceDll = "$PSScriptRoot\build\vcamdroid-obs.dll"
+    } catch {
+        Invoke-WebRequest -Uri "https://github.com/ShadowPlague21/VCamdroid-obs-plugin/releases/download/latest/droidcam-obs.dll" -OutFile "$PSScriptRoot\build\droidcam-obs.dll"
+        $sourceDll = "$PSScriptRoot\build\droidcam-obs.dll"
+    }
 }
 
 # 3. Create backup of original DLL
-if ((Test-Path $targetDll) -and !(Test-Path $backupDll)) {
-    Copy-Item -Path $targetDll -Destination $backupDll -Force
+if ((Test-Path $targetDllLegacy) -and !(Test-Path $backupDll)) {
+    Copy-Item -Path $targetDllLegacy -Destination $backupDll -Force
     Write-Host "[OK] Backed up original DLL to: $backupDll" -ForegroundColor Green
 }
 
-# 4. Copy new DLL
-Copy-Item -Path $sourceDll -Destination $targetDll -Force
-Write-Host "[OK] Successfully installed droidcam-obs.dll into:" -ForegroundColor Green
-Write-Host "     $targetDll" -ForegroundColor Green
+# 4. Copy new DLL to both vcamdroid-obs.dll and droidcam-obs.dll (for full compatibility)
+Copy-Item -Path $sourceDll -Destination $targetDllPrimary -Force
+Copy-Item -Path $sourceDll -Destination $targetDllLegacy -Force
+Write-Host "[OK] Successfully installed into OBS:" -ForegroundColor Green
+Write-Host "     -> $targetDllPrimary" -ForegroundColor Green
+Write-Host "     -> $targetDllLegacy (backward-compatible alias)" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Installation Complete! You can now start OBS Studio." -ForegroundColor Cyan
 Write-Host "Press any key to exit..."

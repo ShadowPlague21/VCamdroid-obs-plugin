@@ -5,13 +5,13 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "DEV47APPS"
-      VALUE "FileDescription", "DroidCam OBS Source Plugin"
-      VALUE "InternalName", "droidcam-obs.dll"
-      VALUE "OriginalFilename", "droidcam-obs.dll"
-      VALUE "ProductName", "DroidCam"
-      VALUE "ProductVersion", "7"
-      VALUE "LegalCopyright", "DEV47APPS, 2026"
+      VALUE "CompanyName", "VCamdroid"
+      VALUE "FileDescription", "VCamdroid OBS Source Plugin"
+      VALUE "InternalName", "vcamdroid-obs.dll"
+      VALUE "OriginalFilename", "vcamdroid-obs.dll"
+      VALUE "ProductName", "VCamdroid"
+      VALUE "ProductVersion", "2.5.1"
+      VALUE "LegalCopyright", "VCamdroid & DEV47APPS, 2026"
     END
   END
 

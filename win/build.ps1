@@ -126,7 +126,22 @@ $compileArgs = @(
     "/D_USRDLL",
     "/D_WINDLL",
     "/D_CRT_SECURE_NO_WARNINGS"
-) + $includes + $srcFiles + @("/link", "/nologo", "/OUT:$buildDir\droidcam-obs.dll") + $libs
+)
+
+# Compile resource file if rc.exe is available
+$resFile = "$buildDir\vcamdroid.res"
+$resArgs = @()
+try {
+    & rc.exe /nologo /fo "$resFile" "$repoRoot\src\droidcam.rc"
+    if (Test-Path $resFile) {
+        $resArgs = @($resFile)
+        Write-Host "Compiled Windows resource: $resFile"
+    }
+} catch {
+    Write-Warning "rc.exe compilation skipped: $_"
+}
+
+$compileArgs = $compileArgs + $includes + $srcFiles + $resArgs + @("/link", "/nologo", "/OUT:$buildDir\vcamdroid-obs.dll") + $libs
 
 Write-Host "Executing cl.exe with arguments:"
 $compileArgs | ForEach-Object { Write-Host "  $_" }
@@ -137,10 +152,14 @@ if ($LASTEXITCODE -ne 0) {
     throw "cl.exe failed with exit code $LASTEXITCODE"
 }
 
-if (!(Test-Path "$buildDir\droidcam-obs.dll")) {
-    throw "Build failed: $buildDir\droidcam-obs.dll does not exist"
+if (!(Test-Path "$buildDir\vcamdroid-obs.dll")) {
+    throw "Build failed: $buildDir\vcamdroid-obs.dll does not exist"
 }
 
-$dllSize = (Get-Item "$buildDir\droidcam-obs.dll").Length
+# Also copy to droidcam-obs.dll for backward compatibility
+Copy-Item "$buildDir\vcamdroid-obs.dll" "$buildDir\droidcam-obs.dll" -Force
+
+$dllSize = (Get-Item "$buildDir\vcamdroid-obs.dll").Length
 Write-Host "=== Build Succeeded! ==="
-Write-Host "Output: $buildDir\droidcam-obs.dll ($([Math]::Round($dllSize / 1MB, 2)) MB, $dllSize bytes)"
+Write-Host "Output: $buildDir\vcamdroid-obs.dll ($([Math]::Round($dllSize / 1MB, 2)) MB, $dllSize bytes)"
+Write-Host "Output: $buildDir\droidcam-obs.dll (backward-compatible copy)"
