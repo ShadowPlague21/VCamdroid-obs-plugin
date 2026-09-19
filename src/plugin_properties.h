@@ -39,9 +39,15 @@
 
 #define PING_REQ "GET /ping"
 #define BATT_REQ "GET /battery HTTP/1.1\r\n\r\n"
+#define SESSION_REQ "GET /v1/session HTTP/1.1\r\n\r\n"
 #define TALLY_REQ "PUT /v1/tally/%s/ HTTP/1.1\r\n\r\n"
 #define AUDIO_REQ "GET /v2/audio"
 #define VIDEO_REQ "GET /v5/video/%s/%dx%d/port/%d/os/%s/obs/%s/client/%s/hdr/%d/nonce/%d/"
+
+#define OPT_CAMERA_LENS "camera_lens"
+#define OPT_CAMERA_FPS  "camera_fps"
+#define TEXT_CAMERA_LENS "Camera Lens"
+#define TEXT_CAMERA_FPS  "Camera FPS"
 
 #define DEFAULT_PORT 4747
 #define DROIDCAM_SERVICE_NAME "_droidcamobs._tcp.local."

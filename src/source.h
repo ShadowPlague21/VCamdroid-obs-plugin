@@ -45,4 +45,5 @@ struct Tally_t {
 enum class CommsTask {
     NONE,
     TALLY,
+    SESSION_UPDATE,
 };

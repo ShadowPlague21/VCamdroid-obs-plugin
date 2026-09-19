@@ -79,6 +79,9 @@ struct droidcam_obs_source {
     struct obs_source_audio obs_audio_frame;
     struct obs_source_frame2 obs_video_frame;
     uint64_t time_start;
+    char active_lens[16];
+    int camera_fps;
+    char session_update_params[128];
     #if DROIDCAM_OVERRIDE
     std::vector<OBSSignal> signal_handlers;
     #endif
@@ -285,6 +288,25 @@ static void *video_decode_thread(void *data) {
                 plugin->obs_video_frame.timestamp);
             #endif
             obs_source_output_video2(plugin->source, &plugin->obs_video_frame);
+
+            if (plugin->obs_video_frame.width > 0 && plugin->obs_video_frame.height > 0 &&
+                (plugin->video_width != (int)plugin->obs_video_frame.width ||
+                 plugin->video_height != (int)plugin->obs_video_frame.height)) {
+
+                ilog("Dynamic resolution sync from phone: %dx%d -> %dx%d",
+                    plugin->video_width, plugin->video_height,
+                    plugin->obs_video_frame.width, plugin->obs_video_frame.height);
+
+                plugin->video_width = (int)plugin->obs_video_frame.width;
+                plugin->video_height = (int)plugin->obs_video_frame.height;
+
+                char res_str[64];
+                snprintf(res_str, sizeof(res_str), "%dx%d", plugin->video_width, plugin->video_height);
+                obs_data_t *settings = obs_source_get_settings(plugin->source);
+                obs_data_set_string(settings, OPT_RESOLUTION_STR, res_str);
+                obs_source_update(plugin->source, settings);
+                obs_data_release(settings);
+            }
         }
 
         LOOP:
@@ -736,30 +758,47 @@ static void *comms_thread(void *data) {
 
         if (event == ETIMEDOUT) {
             #if DROIDCAM_OVERRIDE
-            int i = basic_http(sock, buf, maxlen, battery_req, sizeof(BATT_REQ) - 1);
+            int i = basic_http(sock, buf, maxlen, SESSION_REQ, sizeof(SESSION_REQ) - 1);
             if (i > 0) {
-                int start = i;
-                for (; i < maxlen && isdigit(buf[i]); i++);
-
-                if (i > start) {
-                    buf[i++] = '%';
-                    buf[i  ] = 0;
-
-                    const char* value = (const char*) &buf[start];
-                    i = atoi(value);
-                    const int alert = (prevBattery > WARN && i <= WARN);
-                    dlog("battery %d -> %d (%s) alert=%d", prevBattery, i, value, alert);
-                    signal_source_update(plugin->source, value, alert);
-                    prevBattery = i;
+                const char* body = &buf[i];
+                const char* bpos = strstr(body, "\"battery\":");
+                if (bpos) {
+                    int bval = atoi(bpos + 10);
+                    char bstr[16];
+                    snprintf(bstr, sizeof(bstr), "%d%%", bval);
+                    const int alert = (prevBattery > WARN && bval <= WARN);
+                    dlog("session battery %d -> %d (%s) alert=%d", prevBattery, bval, bstr, alert);
+                    signal_source_update(plugin->source, bstr, alert);
+                    prevBattery = bval;
                 }
             }
-            else goto CLOSE;
+            else {
+                // Fallback to legacy battery endpoint
+                i = basic_http(sock, buf, maxlen, battery_req, sizeof(BATT_REQ) - 1);
+                if (i > 0) {
+                    int start = i;
+                    for (; i < maxlen && isdigit(buf[i]); i++);
 
+                    if (i > start) {
+                        buf[i++] = '%';
+                        buf[i  ] = 0;
+
+                        const char* value = (const char*) &buf[start];
+                        i = atoi(value);
+                        const int alert = (prevBattery > WARN && i <= WARN);
+                        dlog("battery %d -> %d (%s) alert=%d", prevBattery, i, value, alert);
+                        signal_source_update(plugin->source, value, alert);
+                        prevBattery = i;
+                    }
+                }
+                else goto CLOSE;
+            }
             #endif // DROIDCAM_OVERRIDE
         }
 
         CommsTask task;
         const char *tally = NULL;
+        bool update_session = false;
 
         while ((task = plugin->comms_queue.next_item()) != CommsTask::NONE) {
             if (task == CommsTask::TALLY) {
@@ -774,6 +813,17 @@ static void *comms_thread(void *data) {
                     tally = "idle";
                 }
                 dlog("comms: task (%d) // %s", task, tally);
+            }
+            else if (task == CommsTask::SESSION_UPDATE) {
+                update_session = true;
+            }
+        }
+
+        if (update_session && plugin->session_update_params[0] != '\0') {
+            char session_req[256];
+            int len = snprintf(session_req, sizeof(session_req), "PUT /v1/session?%s HTTP/1.1\r\n\r\n", plugin->session_update_params);
+            if (basic_http(sock, buf, maxlen, session_req, len) > 0) {
+                dlog("comms: session update -> %s", plugin->session_update_params);
             }
         }
 
@@ -876,6 +926,11 @@ void *source_create(obs_data_t *settings, obs_source_t *source) {
             plugin->video_height = 1080;
         }
     }
+
+    const char* lens_str = obs_data_get_string(settings, OPT_CAMERA_LENS);
+    snprintf(plugin->active_lens, sizeof(plugin->active_lens), "%s", (lens_str && lens_str[0]) ? lens_str : "back");
+    plugin->camera_fps = (int) obs_data_get_int(settings, OPT_CAMERA_FPS);
+    plugin->session_update_params[0] = '\0';
 
     #if DROIDCAM_OVERRIDE
     plugin->deactivateWNS = true;
@@ -1115,6 +1170,35 @@ static bool video_parms_changed(void *data, obs_properties_t*, obs_property_t*,
     return false;
 }
 
+static bool camera_lens_changed(void *data, obs_properties_t*, obs_property_t*, obs_data_t *settings) {
+    droidcam_obs_source *plugin = (droidcam_obs_source*)(data);
+    if (!plugin) return false;
+    const char *lens = obs_data_get_string(settings, OPT_CAMERA_LENS);
+    if (!lens) return false;
+
+    if (strcmp(plugin->active_lens, lens) != 0) {
+        snprintf(plugin->active_lens, sizeof(plugin->active_lens), "%s", lens);
+        snprintf(plugin->session_update_params, sizeof(plugin->session_update_params), "lens=%s", lens);
+        ilog("User changed camera lens in OBS: %s", lens);
+        comms_task(CommsTask::SESSION_UPDATE);
+    }
+    return false;
+}
+
+static bool camera_fps_changed(void *data, obs_properties_t*, obs_property_t*, obs_data_t *settings) {
+    droidcam_obs_source *plugin = (droidcam_obs_source*)(data);
+    if (!plugin) return false;
+    int fps = (int) obs_data_get_int(settings, OPT_CAMERA_FPS);
+
+    if (fps > 0 && plugin->camera_fps != fps) {
+        plugin->camera_fps = fps;
+        snprintf(plugin->session_update_params, sizeof(plugin->session_update_params), "fps=%d", fps);
+        ilog("User changed camera FPS in OBS: %d", fps);
+        comms_task(CommsTask::SESSION_UPDATE);
+    }
+    return false;
+}
+
 static bool connect_clicked(obs_properties_t *ppts, obs_property_t *p, void *data) {
     droidcam_obs_source *plugin = (droidcam_obs_source*)(data);
     struct active_device_info *device_info = &plugin->device_info;
@@ -1341,14 +1425,29 @@ obs_properties_t *source_properties(void *data) {
     ilog("source_properties: activated=%d, uhd_unlock=%d", activated, uhd_unlock);
 
     cp = obs_properties_add_list(ppts, OPT_RESOLUTION_STR, TEXT_RESOLUTION,
-        #if DROIDCAM_OVERRIDE
-        OBS_COMBO_TYPE_LIST,
-        #else
         OBS_COMBO_TYPE_EDITABLE,
-        #endif
         OBS_COMBO_FORMAT_STRING);
-    for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
-        obs_property_list_add_string(cp, Resolutions[i], Resolutions[i]);
+
+    if (plugin) {
+        obs_data_t *settings = obs_source_get_settings(plugin->source);
+        const char* cur_res = obs_data_get_string(settings, OPT_RESOLUTION_STR);
+        bool found_cur = false;
+
+        for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
+            obs_property_list_add_string(cp, Resolutions[i], Resolutions[i]);
+            if (cur_res && strcmp(Resolutions[i], cur_res) == 0) {
+                found_cur = true;
+            }
+        }
+
+        if (!found_cur && cur_res && cur_res[0] != '\0') {
+            obs_property_list_add_string(cp, cur_res, cur_res);
+        }
+        obs_data_release(settings);
+    } else {
+        for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
+            obs_property_list_add_string(cp, Resolutions[i], Resolutions[i]);
+        }
     }
 
     obs_property_set_modified_callback2(cp, video_parms_changed, data);
@@ -1358,6 +1457,19 @@ obs_properties_t *source_properties(void *data) {
         obs_property_list_add_int(cp, VideoFormatNames[i][0], i);
 
     obs_property_set_modified_callback2(cp, video_parms_changed, data);
+
+    cp = obs_properties_add_list(ppts, OPT_CAMERA_LENS, TEXT_CAMERA_LENS, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(cp, "Rear Sensor (Wide)", "back");
+    obs_property_list_add_string(cp, "Front Sensor", "front");
+    obs_property_set_modified_callback2(cp, camera_lens_changed, data);
+
+    cp = obs_properties_add_list(ppts, OPT_CAMERA_FPS, TEXT_CAMERA_FPS, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(cp, "Match Phone / Auto", 0);
+    obs_property_list_add_int(cp, "60 FPS", 60);
+    obs_property_list_add_int(cp, "30 FPS", 30);
+    obs_property_list_add_int(cp, "24 FPS", 24);
+    obs_property_list_add_int(cp, "15 FPS", 15);
+    obs_property_set_modified_callback2(cp, camera_fps_changed, data);
 
     obs_properties_add_list(ppts, OPT_DEVICE_LIST, TEXT_DEVICE, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     cp = obs_properties_get(ppts, OPT_DEVICE_LIST);
@@ -1428,4 +1540,6 @@ void source_defaults(obs_data_t *settings) {
     obs_data_set_default_bool(settings, OPT_UNBUFFERED_OUT, true);
     obs_data_set_default_int(settings, OPT_APP_PORT, DEFAULT_PORT);
     obs_data_set_default_string(settings, OPT_RESOLUTION_STR, Resolutions[0]);
+    obs_data_set_default_string(settings, OPT_CAMERA_LENS, "back");
+    obs_data_set_default_int(settings, OPT_CAMERA_FPS, 0);
 }
