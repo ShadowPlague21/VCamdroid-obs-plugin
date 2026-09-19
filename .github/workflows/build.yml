@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-linux:
@@ -41,6 +42,7 @@ jobs:
         with:
           name: vcamdroid-obs-linux
           path: build/vcamdroid-obs.so
+          retention-days: 2
 
   build-windows:
     runs-on: windows-latest
@@ -63,6 +65,7 @@ jobs:
           path: |
             build/vcamdroid-obs.dll
             build/droidcam-obs.dll
+          retention-days: 2
 
       - name: Release Windows DLL
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
@@ -75,3 +78,26 @@ jobs:
             build/droidcam-obs.dll
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  prune-old-builds:
+    needs: [build-linux, build-windows]
+    if: always() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prune older runs (keep latest and 1 previous)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUNS=$(gh api -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/runs?per_page=30" \
+            --jq '.workflow_runs[] | select(.status=="completed") | .id')
+          COUNT=0
+          for RUN_ID in $RUNS; do
+            COUNT=$((COUNT+1))
+            if [ $COUNT -gt 2 ]; then
+              echo "Pruning older run: $RUN_ID"
+              gh api -X DELETE "/repos/${{ github.repository }}/actions/runs/$RUN_ID" || true
+            else
+              echo "Preserving recent run: $RUN_ID"
+            fi
+          done
