@@ -14,6 +14,17 @@ if (!(Test-Path $obsDir)) {
     git clone --depth 1 --branch 32.2.1 https://github.com/obsproject/obs-studio.git $obsDir
 }
 
+# Ensure libobs/obsconfig.h exists
+Set-Content -Path "$obsDir\libobs\obsconfig.h" -Value @"
+#pragma once
+#define OBS_VERSION "32.2.1"
+#define OBS_DATA_PATH "data"
+#define OBS_INSTALL_PREFIX ""
+#define OBS_PLUGIN_DESTINATION "obs-plugins/64bit"
+#define OBS_RELEASE_CANDIDATE 0
+#define OBS_BETA 0
+"@
+
 # 2. Download and extract obs-deps (contains FFmpeg headers & libs: avcodec.lib, avutil.lib)
 $obsDepsExtract = Join-Path $depsDir "obs-deps"
 if (!(Test-Path $obsDepsExtract)) {

@@ -6,13 +6,17 @@
 
 #ifdef _WIN32
   #include <winsock2.h>
+  #include <basetsd.h>
   #define SHUT_RD SD_RECEIVE
   #define SHUT_WR SD_SEND
   #define SHUT_RDWR SD_BOTH
   #define poll WSAPoll
   #define WSAErrno errno=WSAGetLastError
   typedef SOCKET socket_t;
-  typedef int ssize_t;
+  #ifndef _SSIZE_T_DEFINED
+  #define _SSIZE_T_DEFINED
+  typedef SSIZE_T ssize_t;
+  #endif
 #else
   #define INVALID_SOCKET -1
   #define WSAErrno(...)
